@@ -21,11 +21,11 @@ import java.io.IOException;
  */
 public class Processor {
 	/**
-	 * 
-	 * @param socket клиентский сокет
-	 * @throws NullPointerException
-	 * @throws IOException
-	 */
+	* 
+	* @param socket клиентский сокет
+	* @throws NullPointerException
+	* @throws IOException
+	*/
 	public Processor(Socket socket) throws NullPointerException, IOException {
 		if (socket == null) throw new NullPointerException("socket is null");
 		SOCKET = socket;
@@ -39,108 +39,108 @@ public class Processor {
 	}
 	
 	/**
-	 * клиентский сокет
-	 */
+	* клиентский сокет
+	*/
 	public final Socket SOCKET;
 	/**
-	 * входящий поток данных
-	 */
+	* входящий поток данных
+	*/
 	public final InputStream IS;
 	/**
-	 * исходящий поток данных
-	 */
-    public final OutputStream OS;
-    /**
-     * заголовок от клиента
-     */
-    public final HashMap<String, String> HEADER = new HashMap<String, String>();
-    /**
-     * тип запроса
-     */
-    public final Type TYPE;
-    /**
-     * запрашиваемый путь
-     */
-    public final String PATH;
-    /**
-     * версия HTTP
-     */
-    public final String HTTP;
-    /**
-     * заголовок для ответа клиенту
-     */
-    public HashMap<String, String> respheader = new HashMap<String, String>();
-    /**
-     * код для ответа
-     */
-    public String respcode = "HTTP/1.1 200 OK";
-    /**
-     * MIME тип
-     */
-    public String mime = "text/html; charset=\"UTF-8\"";
-    
-    /**
-     * отправка строки в ответ (автоматическая добавка Content-Length в заголовок)
-     * @param response содержимое страницы
-     * @param gzip true - упаковать содержимое (добавит Content-Encoding: gzip в заголовок)
-     * @throws NullPointerException
-     * @throws IOException
-     */
-    public void writeResponse(String response, boolean gzip) throws NullPointerException, IOException {
-    	if (response == null) throw new NullPointerException("response is null");
-    	byte b[] = null;
-    	if (gzip) {
-    		ByteArrayOutputStream bao = new ByteArrayOutputStream();
-    		GZIPOutputStream gos = new GZIPOutputStream(bao);
-    		gos.write(response.getBytes());
-    		gos.close();
-    		b = bao.toByteArray();
-    		respheader.put("Content-Encoding", "gzip");
-    	}
-    	else b = response.getBytes();
-    	respheader.put("Content-Length", String.valueOf(b.length));
-    	writeHeader();
-    	OS.write(b);
-	}
-    
-    /**
-     * отправка файла в ответ
-     * @param response файл
-     * @param gzip true - упаковать файл (добавит Content-Encoding: gzip в заголовок)
-     * @param buffer по скольку байтов читать из файла за 1 итерацию цикла
-     * @throws NullPointerException
-     * @throws IOException
-     */
-    public void writeResponse(File response, boolean gzip, int buffer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
-    	if (response == null) throw new NullPointerException("response is null");
-    	if (buffer <= 0) throw new IllegalArgumentException("buffer <= 0");
-    	if (gzip) respheader.put("Content-Encoding", "gzip");
-    	else respheader.put("Content-Length", String.valueOf(response.length()));
-    	writeHeader();
-    	byte b[] = new byte[buffer];
-    	FileInputStream fis = new FileInputStream(response);
-    	if (gzip) {
-    		GZIPOutputStream gos = new GZIPOutputStream(OS);
-    		while(fis.available() > 0) {
-    			fis.read(b);
-    			gos.write(b);
-    		}
-    		gos.finish();
-    	}
-    	else {
-    		while(fis.available() > 0) {
-    			fis.read(b);
-    			OS.write(b);
-    		}
-    	}
-    	fis.close();
-    }
+	* исходящий поток данных
+	*/
+	public final OutputStream OS;
+	/**
+	* заголовок от клиента
+	*/
+	public final HashMap<String, String> HEADER = new HashMap<String, String>();
+	/**
+	* тип запроса
+	*/
+	public final Type TYPE;
+	/**
+	* запрашиваемый путь
+	*/
+	public final String PATH;
+	/**
+	* версия HTTP
+	*/
+	public final String HTTP;
+	/**
+	* заголовок для ответа клиенту
+	*/
+	public HashMap<String, String> respheader = new HashMap<String, String>();
+	/**
+	* код для ответа
+	*/
+	public String respcode = "HTTP/1.1 200 OK";
+	/**
+	* MIME тип
+	*/
+	public String mime = "text/html; charset=\"UTF-8\"";
 	
-    /**
-     * прочитать данные от клиента
-     * @return
-     * @throws IOException
-     */
+	/**
+	* отправка строки в ответ (автоматическая добавка Content-Length в заголовок)
+	* @param response содержимое страницы
+	* @param gzip true - упаковать содержимое (добавит Content-Encoding: gzip в заголовок)
+	* @throws NullPointerException
+	* @throws IOException
+	*/
+	public void writeResponse(String response, boolean gzip) throws NullPointerException, IOException {
+		if (response == null) throw new NullPointerException("response is null");
+		byte b[] = null;
+		if (gzip) {
+			ByteArrayOutputStream bao = new ByteArrayOutputStream();
+			GZIPOutputStream gos = new GZIPOutputStream(bao);
+			gos.write(response.getBytes());
+			gos.close();
+			b = bao.toByteArray();
+			respheader.put("Content-Encoding", "gzip");
+		}
+		else b = response.getBytes();
+		respheader.put("Content-Length", String.valueOf(b.length));
+		writeHeader();
+		OS.write(b);
+	}
+	
+	/**
+	* отправка файла в ответ
+	* @param response файл
+	* @param gzip true - упаковать файл (добавит Content-Encoding: gzip в заголовок)
+	* @param buffer по скольку байтов читать из файла за 1 итерацию цикла
+	* @throws NullPointerException
+	* @throws IOException
+	*/
+	public void writeResponse(File response, boolean gzip, int buffer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+		if (response == null) throw new NullPointerException("response is null");
+		if (buffer <= 0) throw new IllegalArgumentException("buffer <= 0");
+		if (gzip) respheader.put("Content-Encoding", "gzip");
+		else respheader.put("Content-Length", String.valueOf(response.length()));
+		writeHeader();
+		byte b[] = new byte[buffer];
+		FileInputStream fis = new FileInputStream(response);
+		if (gzip) {
+			GZIPOutputStream gos = new GZIPOutputStream(OS);
+			while(fis.available() > 0) {
+				fis.read(b);
+				gos.write(b);
+			}
+			gos.finish();
+		}
+		else {
+			while(fis.available() > 0) {
+				fis.read(b);
+				OS.write(b);
+			}
+		}
+		fis.close();
+	}
+	
+	/**
+	* прочитать данные от клиента
+	* @return
+	* @throws IOException
+	*/
 	public List<String> read() throws IOException {
 		ArrayList<String> result = new ArrayList<String>();
 		BufferedReader reader = new BufferedReader(new InputStreamReader(IS));
@@ -149,9 +149,9 @@ public class Processor {
 	}
 	
 	/**
-	 * закрыть соединение
-	 * @throws IOException
-	 */
+	* закрыть соединение
+	* @throws IOException
+	*/
 	public void close() throws IOException {
 		IS.close();
 		OS.close();
@@ -167,10 +167,10 @@ public class Processor {
 	}
 	
 	/**
-     * прочитать только заголовок
-     * @return
-     * @throws IOException
-     */
+	* прочитать только заголовок
+	* @return
+	* @throws IOException
+	*/
 	private List<String> readHeader() throws IOException {
 		ArrayList<String> result = new ArrayList<String>();
 		BufferedReader reader = new BufferedReader(new InputStreamReader(IS));
@@ -187,10 +187,10 @@ public class Processor {
 	}
 	
 	/**
-	 * прочитать данные от клиента и заполнить HEADER
-	 * @return данные для заполнения TYPE, PATH и HTTP
-	 * @throws IOException
-	 */
+	* прочитать данные от клиента и заполнить HEADER
+	* @return данные для заполнения TYPE, PATH и HTTP
+	* @throws IOException
+	*/
 	private String[] parseHeader() throws IOException {
 		boolean first = true;
 		String result[] = null;
@@ -210,17 +210,17 @@ public class Processor {
 	}
 	
 	/**
-	 * отправить клиенту заголовок из respheader и respcode
-	 * @throws IOException
-	 */
+	* отправить клиенту заголовок из respheader и respcode
+	* @throws IOException
+	*/
 	private void writeHeader() throws IOException {
-		OS.write((respcode + '\n').getBytes());
+		OS.write((respcode + "\r\n").getBytes());
 		for (Entry<String, String> entry : respheader.entrySet()) {
-			String resp = entry.getKey() + ": " + entry.getValue() + '\n';
+			String resp = entry.getKey() + ": " + entry.getValue() + "\r\n";
 			OS.write(resp.getBytes());
 		}
-		if (mime != null) OS.write(("Content-Type: " + mime + '\n').getBytes());
-		OS.write("\n".getBytes());
+		if (mime != null) OS.write(("Content-Type: " + mime + "\r\n").getBytes());
+		OS.write("\r\n".getBytes());
 	}
 	
 	public enum Type {GET, POST}

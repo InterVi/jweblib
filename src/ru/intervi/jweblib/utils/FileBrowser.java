@@ -27,7 +27,7 @@ public class FileBrowser {
 	/**
 	 * основной шаблон
 	 */
-	public String template = "<html><head><title>%s</title><style>%s</style></head><body><div id=\"header\"><h1>%s</h1><hr/><a href=\"/\">...</a><hr/></div><div id=\"dirs\">%s</div><div id=\"content\">%s</div></body></html>";
+	public String template = "<html><head><title>%s</title><meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\" /><style>%s</style></head><body><div id=\"header\"><h1>%s</h1><hr/><a href=\"/\">...</a><hr/></div><div id=\"dirs\">%s</div><div id=\"content\">%s</div></body></html>";
 	/**
 	 * CSS
 	 */

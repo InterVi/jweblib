@@ -3,7 +3,7 @@ package ru.intervi.jweblib;
 import java.util.Scanner;
 
 public class Main {
-	public static final String VERSION = "0.1";
+	public static final String VERSION = "0.2";
 	
 	/**
 	 * 
@@ -38,7 +38,7 @@ public class Main {
 		while (true) {
 			if (in.next().equalsIgnoreCase("stop")) {
 				if (hw != null) hw.stop();
-				if (bro != null) bro.onStop();
+				if (bro != null) bro.stop();
 				break;
 			}
 		}

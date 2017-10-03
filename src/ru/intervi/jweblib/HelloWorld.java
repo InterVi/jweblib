@@ -26,7 +26,7 @@ public class HelloWorld implements Listener {
 			try {
 				File file = new File(path);
 				BufferedReader reader = new BufferedReader(new FileReader(file));
-				while(reader.ready()) content += (reader.readLine()) + "\n";
+				while(reader.ready()) content += (reader.readLine()) + '\n';
 				reader.close();
 			} catch(IOException e) {e.printStackTrace();}
 		}
