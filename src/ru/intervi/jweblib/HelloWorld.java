@@ -60,7 +60,7 @@ public class HelloWorld implements Listener {
 		try {
 			proc = new Processor(sock);
 			System.out.println("Connect: " + proc.SOCKET.getInetAddress().getHostAddress());
-			System.out.println(proc.TYPE.toString() + ' ' + proc.PATH + ' ' + proc.HTTP);
+			System.out.println(proc.type.toString() + ' ' + proc.path + ' ' + proc.http);
 			for (Entry<String, String> entry : proc.HEADER.entrySet())
 				System.out.println(entry.getKey() + ": " + entry.getValue());
 			proc.respheader.put("SERVER", "jweblib " + String.valueOf(Main.VERSION));

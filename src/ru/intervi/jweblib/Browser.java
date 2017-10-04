@@ -61,7 +61,7 @@ public class Browser implements Listener {
 			FileBrowser browser = null;
 			try {
 				browser = new FileBrowser(SOCK, PATH);
-				System.out.println("Connect " + SOCK.getInetAddress().getHostAddress() + ", " + (browser.PROC.TYPE == Processor.Type.GET ? "GET " : "POST ") + browser.PATH.getAbsolutePath());
+				System.out.println("Connect " + SOCK.getInetAddress().getHostAddress() + ", " + (browser.PROC.type == Processor.Type.GET ? "GET " : "POST ") + browser.PATH.getAbsolutePath());
 				browser.run();
 			} catch(Exception e) {e.printStackTrace();}
 			finally {

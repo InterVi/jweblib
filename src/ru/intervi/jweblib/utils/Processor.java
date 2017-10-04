@@ -31,11 +31,7 @@ public class Processor {
 		SOCKET = socket;
 		IS = socket.getInputStream();
 		OS = socket.getOutputStream();
-		String request[] = parseHeader();
-		if (request[0].trim().equals("GET")) TYPE = Type.GET;
-		else TYPE = Type.POST;
-		PATH = request[1].trim();
-		HTTP = request[2].trim();
+		callParseHeader();
 	}
 	
 	/**
@@ -57,15 +53,15 @@ public class Processor {
 	/**
 	* тип запроса
 	*/
-	public final Type TYPE;
+	public Type type;
 	/**
 	* запрашиваемый путь
 	*/
-	public final String PATH;
+	public String path;
 	/**
-	* версия HTTP
+	* версия http
 	*/
-	public final String HTTP;
+	public String http;
 	/**
 	* заголовок для ответа клиенту
 	*/
@@ -73,11 +69,12 @@ public class Processor {
 	/**
 	* код для ответа
 	*/
-	public String respcode = "HTTP/1.1 200 OK";
+	public String respcode = "http/1.1 200 OK";
 	/**
 	* MIME тип
 	*/
 	public String mime = "text/html; charset=\"UTF-8\"";
+	private int pheader = 0;
 	
 	/**
 	* отправка строки в ответ (автоматическая добавка Content-Length в заголовок)
@@ -158,6 +155,27 @@ public class Processor {
 		SOCKET.close();
 	}
 	
+	/**
+	 * прочитать заголовок и заполнить переменные
+	 * @throws IOException
+	 */
+	public void callParseHeader() throws IOException {
+		String request[] = parseHeader();
+		if (request[0].trim().equals("GET")) type = Type.GET;
+		else type = Type.POST;
+		path = request[1].trim();
+		http = request[2].trim();
+		pheader++;
+	}
+	
+	/**
+	 * получить количество прочтений заголовка
+	 * @return
+	 */
+	public int getCallsParseHeader() {
+		return pheader;
+	}
+	
 	private int getN(String str) {
 		int result = 0;
 		for (int i = str.length()-1; i >= 0; i--) {
@@ -188,12 +206,13 @@ public class Processor {
 	
 	/**
 	* прочитать данные от клиента и заполнить HEADER
-	* @return данные для заполнения TYPE, PATH и HTTP
+	* @return данные для заполнения type, path и http
 	* @throws IOException
 	*/
 	private String[] parseHeader() throws IOException {
 		boolean first = true;
 		String result[] = null;
+		HEADER.clear();
 		for (String s : readHeader()) {
 			if (s == null || s.isEmpty()) continue;
 			if (first) {

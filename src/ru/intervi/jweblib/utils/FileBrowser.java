@@ -11,7 +11,7 @@ import java.net.Socket;
 public class FileBrowser {
 	public FileBrowser(Socket sock, File path) throws NullPointerException, IOException {
 		PROC = new Processor(sock);
-		URL = PROC.PATH;
+		URL = PROC.path;
 		PATH = getPath(path, URL);
 	}
 	
@@ -64,7 +64,7 @@ public class FileBrowser {
 	public void run() throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		if (PATH.isFile()) {
 			FileSender fs = new FileSender(PROC, PATH);
-			fs.sendFile(PROC.PATH, true, 1024, true);
+			fs.sendFile(PROC.path, true, 1024, true);
 			return;
 		}
 		FileObject dir = new FileObject(PATH);
