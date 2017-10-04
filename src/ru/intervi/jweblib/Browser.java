@@ -41,21 +41,34 @@ public class Browser implements Listener {
 	
 	@Override
 	public void onConnect(Socket sock) {
-		FileBrowser browser = null;
-		try {
-			browser = new FileBrowser(sock, PATH);
-			System.out.println("Connect " + sock.getInetAddress().getHostAddress() + ", " + (browser.PROC.TYPE == Processor.Type.GET ? "GET " : "POST ") + browser.PATH.getAbsolutePath());
-			browser.run();
-		} catch(Exception e) {e.printStackTrace();}
-		finally {
-			try {
-				if (browser != null) browser.PROC.close();
-			} catch(Exception e) {e.printStackTrace();}
-		}
+		new Worker(sock).start();
 	}
 	
 	public void stop() {
 		try {SERVER.stop();}
 		catch(IOException e) {e.printStackTrace();}
+	}
+	
+	private class Worker extends Thread {
+		public Worker(Socket sock) {
+			SOCK = sock;
+		}
+		
+		private final Socket SOCK;
+		
+		@Override
+		public void run() {
+			FileBrowser browser = null;
+			try {
+				browser = new FileBrowser(SOCK, PATH);
+				System.out.println("Connect " + SOCK.getInetAddress().getHostAddress() + ", " + (browser.PROC.TYPE == Processor.Type.GET ? "GET " : "POST ") + browser.PATH.getAbsolutePath());
+				browser.run();
+			} catch(Exception e) {e.printStackTrace();}
+			finally {
+				try {
+					if (browser != null) browser.PROC.close();
+				} catch(Exception e) {e.printStackTrace();}
+			}
+		}
 	}
 }
