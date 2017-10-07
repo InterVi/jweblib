@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map.Entry;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -94,10 +95,15 @@ public class HelloWorld extends Pass {
 	}
 	
 	private void clear() {
-		for (Entry<SocketAddress, Processor> entry : map.entrySet()) {
+		Iterator<Entry<SocketAddress, Processor>> iter = map.entrySet().iterator();
+		while(iter.hasNext()) {
+			Entry<SocketAddress, Processor> entry = iter.next();
 			try {
-				if (!entry.getValue().CHANNEL.isOpen()) map.remove(entry.getKey());
-			} catch(Exception e) {map.remove(entry.getKey());}
+				if (!entry.getValue().CHANNEL.isOpen()) iter.remove();
+			} catch(Exception e) {
+				e.printStackTrace();
+				iter.remove();
+			}
 		}
 	}
 	

@@ -7,6 +7,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map.Entry;
 
 import ru.intervi.jweblib.api.Pass;
@@ -105,15 +106,25 @@ public class Browser extends Pass {
 	}
 	
 	private void clear() {
-		for (Entry<SocketAddress, FileSender> entry : map.entrySet()) {
+		Iterator<Entry<SocketAddress, FileSender>> iter = map.entrySet().iterator();
+		while(iter.hasNext()) {
+			Entry<SocketAddress, FileSender> entry = iter.next();
 			try {
-				if (!entry.getValue().PROC.CHANNEL.isOpen()) map.remove(entry.getKey());
-			} catch(Exception e) {map.remove(entry.getKey());}
+				if (!entry.getValue().PROC.CHANNEL.isOpen()) iter.remove();
+			} catch(Exception e) {
+				e.printStackTrace();
+				iter.remove();
+			}
 		}
-		for (Entry<SocketAddress, Processor> entry : map2.entrySet()) {
+		Iterator<Entry<SocketAddress, Processor>> iter2 = map2.entrySet().iterator();
+		while(iter2.hasNext()) {
+			Entry<SocketAddress, Processor> entry = iter2.next();
 			try {
-				if (!entry.getValue().CHANNEL.isOpen()) map2.remove(entry.getKey());
-			} catch(Exception e) {map2.remove(entry.getKey());}
+				if (!entry.getValue().CHANNEL.isOpen()) iter2.remove();
+			} catch(Exception e) {
+				e.printStackTrace();
+				iter2.remove();
+			}
 		}
 	}
 	
