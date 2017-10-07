@@ -40,7 +40,13 @@ public class FileBrowser {
 	 */
 	public String dirItem = "<p><a href=\"%s\"><b class=\"dir_name\">%s</b></a><br/><hr/></p>";
 	
-	private File getPath(File path, String url) {
+	/**
+	 * получить путь к запрашиваемой директории или файлу
+	 * @param path корневой каталог
+	 * @param url запрашиваемый адрес
+	 * @return
+	 */
+	public static File getPath(File path, String url) {
 		byte c = 0;
 		if (url.indexOf("://") != -1) {
 			for (int i = 0; i < url.length(); i++) {
