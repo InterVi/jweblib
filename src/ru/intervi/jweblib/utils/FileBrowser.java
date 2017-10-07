@@ -3,14 +3,13 @@ package ru.intervi.jweblib.utils;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.Socket;
 
 /**
  * Простейший файловый менеджер, позволяющий просматривать директории и скачивать файлы.
  */
 public class FileBrowser {
-	public FileBrowser(Socket sock, File path) throws NullPointerException, IOException {
-		PROC = new Processor(sock);
+	public FileBrowser(Processor proc, File path) throws NullPointerException, IOException {
+		PROC = proc;
 		URL = PROC.path;
 		PATH = getPath(path, URL);
 	}
@@ -56,16 +55,21 @@ public class FileBrowser {
 	
 	/**
 	 * отдача содержимого
+	 * @param longer true - постепенная, не блокирующая отдача файлов
+	 * @return
 	 * @throws NullPointerException
 	 * @throws FileNotFoundException
 	 * @throws IllegalArgumentException
 	 * @throws IOException
 	 */
-	public void run() throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+	public FileSender run(boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+		if (PROC.type == Processor.Type.POST) {
+			PROC.close();
+			return null;
+		}
 		if (PATH.isFile()) {
-			FileSender fs = new FileSender(PROC, PATH);
-			fs.sendFile(PROC.path, true, 1024, true);
-			return;
+			FileSender fs = new FileSender(PROC, PATH, longer);
+			return fs;
 		}
 		FileObject dir = new FileObject(PATH);
 		String args[] = new String[5];
@@ -97,5 +101,6 @@ public class FileBrowser {
 		args[4] = files;
 		PROC.writeResponse(String.format(template, (Object[]) args), true);
 		PROC.close();
+		return null;
 	}
 }

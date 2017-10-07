@@ -13,21 +13,21 @@ public class FileSender {
 		PROC = proc;
 	}
 	
-	public FileSender(Processor proc, String sendPath) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+	public FileSender(Processor proc, String sendPath, boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		PROC = proc;
-		sendFile(sendPath, true, 1024, true);
+		sendFile(sendPath, 1024, true, longer);
 	}
 	
-	public FileSender(Processor proc, File sendFile) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+	public FileSender(Processor proc, File sendFile, boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		PROC = proc;
-		sendFile(sendFile, true, 1024, true);
+		sendFile(sendFile, 1024, true, longer);
 	}
 	
 	private FileSender() { //костыль
 		PROC = null;
 	}
 	
-	private final Processor PROC;
+	public final Processor PROC;
 	
 	/**
 	 * получить директорию с jar-файлом
@@ -40,19 +40,19 @@ public class FileSender {
 	/**
 	 * отправить файл клиенту
 	 * @param file файл
-	 * @param gzip true чтобы использовать сжатие
 	 * @param buffer см. {@link ru.intervi.jweblib.utils.Processor.writeResponse(File, boolean, int)}
 	 * @param mime true чтобы определять MIME-типы
-	 * @return true если файл был отправлен
+	 * @param longer true - не блокирующая постепенная отправка
+	 * @return true если файл не был найден
 	 * @throws NullPointerException
 	 * @throws FileNotFoundException
 	 * @throws IllegalArgumentException
 	 * @throws IOException
 	 */
-	public boolean sendFile(File file, boolean gzip, int buffer, boolean mime) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+	public boolean sendFile(File file, int buffer, boolean mime, boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		if (file.isFile()) {
 			if (mime) PROC.mime = Files.probeContentType(file.toPath());
-			PROC.writeResponse(file, gzip, buffer);
+			PROC.writeResponse(file, buffer, longer);
 			return true;
 		} else return false;
 	}
@@ -60,16 +60,24 @@ public class FileSender {
 	/**
 	 * отправить файл клиенту
 	 * @param path путь к файлу
-	 * @param gzip true чтобы использовать сжатие
 	 * @param buffer см. {@link ru.intervi.jweblib.utils.Processor.writeResponse(File, boolean, int)}
 	 * @param mime true чтобы определять MIME-типы
+	 * @param longer true - не блокирующая постепенная отправка
 	 * @return true если файл был отправлен
 	 * @throws NullPointerException
 	 * @throws FileNotFoundException
 	 * @throws IllegalArgumentException
 	 * @throws IOException
 	 */
-	public boolean sendFile(String path, boolean gzip, int buffer, boolean mime) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
-		return sendFile(new File(path), gzip, buffer, mime);
+	public boolean sendFile(String path, int buffer, boolean mime, boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+		return sendFile(new File(path), buffer, mime, longer);
+	}
+	
+	/**
+	 * должен вызываться по событию из Worker или аналогичного обработчика (для постепенной, не блокирующей отдачи файла)
+	 * @throws IOException
+	 */
+	public void callWrite() throws IOException {
+		PROC.callWrite();
 	}
 }

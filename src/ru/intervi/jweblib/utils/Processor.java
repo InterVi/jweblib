@@ -1,19 +1,15 @@
 package ru.intervi.jweblib.utils;
 
-import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.file.StandardOpenOption;
 import java.util.zip.GZIPOutputStream;
 import java.util.HashMap;
 import java.util.Map.Entry;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.io.BufferedReader;
 import java.io.IOException;
 
 /**
@@ -26,26 +22,15 @@ public class Processor {
 	* @throws NullPointerException
 	* @throws IOException
 	*/
-	public Processor(Socket socket) throws NullPointerException, IOException {
-		if (socket == null) throw new NullPointerException("socket is null");
-		SOCKET = socket;
-		IS = socket.getInputStream();
-		OS = socket.getOutputStream();
-		callParseHeader();
+	public Processor(SocketChannel channel) throws NullPointerException, IOException {
+		if (channel == null) throw new NullPointerException("socket is null");
+		CHANNEL = channel;
 	}
 	
 	/**
 	* клиентский сокет
 	*/
-	public final Socket SOCKET;
-	/**
-	* входящий поток данных
-	*/
-	public final InputStream IS;
-	/**
-	* исходящий поток данных
-	*/
-	public final OutputStream OS;
+	public final SocketChannel CHANNEL;
 	/**
 	* заголовок от клиента
 	*/
@@ -74,7 +59,10 @@ public class Processor {
 	* MIME тип
 	*/
 	public String mime = "text/html; charset=\"UTF-8\"";
-	private int pheader = 0;
+	private int pheader = 0, dataLimit = 1024, wpos = 0, wbuf = 0;
+	private long wlen = 0;
+	private ByteArrayOutputStream data = new ByteArrayOutputStream();
+	private FileChannel lfc;
 	
 	/**
 	* отправка строки в ответ (автоматическая добавка Content-Length в заголовок)
@@ -85,64 +73,84 @@ public class Processor {
 	*/
 	public void writeResponse(String response, boolean gzip) throws NullPointerException, IOException {
 		if (response == null) throw new NullPointerException("response is null");
-		byte b[] = null;
+		ByteArrayOutputStream bao = new ByteArrayOutputStream();
 		if (gzip) {
-			ByteArrayOutputStream bao = new ByteArrayOutputStream();
 			GZIPOutputStream gos = new GZIPOutputStream(bao);
 			gos.write(response.getBytes());
 			gos.close();
-			b = bao.toByteArray();
 			respheader.put("Content-Encoding", "gzip");
 		}
-		else b = response.getBytes();
-		respheader.put("Content-Length", String.valueOf(b.length));
-		writeHeader();
-		OS.write(b);
+		else bao.write(response.getBytes());
+		respheader.put("Content-Length", String.valueOf(bao.size()));
+		bao.flush();
+		byte b[] = bao.toByteArray();
+		bao.reset();
+		bao.write(getHeader());
+		bao.write(b);
+		bao.flush();
+		CHANNEL.write(ByteBuffer.wrap(bao.toByteArray()));
 	}
 	
 	/**
 	* отправка файла в ответ
 	* @param response файл
-	* @param gzip true - упаковать файл (добавит Content-Encoding: gzip в заголовок)
 	* @param buffer по скольку байтов читать из файла за 1 итерацию цикла
+	* @longer true - постепенная не блокирующая отправка (по вызовам callWrite), false - целиковая (блокирующая)
 	* @throws NullPointerException
 	* @throws IOException
 	*/
-	public void writeResponse(File response, boolean gzip, int buffer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+	public void writeResponse(File response, int buffer, boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		if (response == null) throw new NullPointerException("response is null");
 		if (buffer <= 0) throw new IllegalArgumentException("buffer <= 0");
-		if (gzip) respheader.put("Content-Encoding", "gzip");
-		else respheader.put("Content-Length", String.valueOf(response.length()));
-		writeHeader();
-		byte b[] = new byte[buffer];
-		FileInputStream fis = new FileInputStream(response);
-		if (gzip) {
-			GZIPOutputStream gos = new GZIPOutputStream(OS);
-			while(fis.available() > 0) {
-				fis.read(b);
-				gos.write(b);
-			}
-			gos.finish();
+		respheader.put("Content-Length", String.valueOf(response.length()));
+		CHANNEL.write(ByteBuffer.wrap(getHeader()));
+		if (longer) {
+			lfc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
+			wpos = 0;
+			wbuf = buffer;
+			wlen = response.length();
+			wpos += lfc.transferTo(wpos, wbuf, CHANNEL);
+		} else {
+			FileChannel fc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
+			long pos = 0;
+			while(pos < response.length())
+				pos += fc.transferTo(pos, buffer, CHANNEL);
+			fc.close();
 		}
-		else {
-			while(fis.available() > 0) {
-				fis.read(b);
-				OS.write(b);
-			}
-		}
-		fis.close();
 	}
 	
 	/**
-	* прочитать данные от клиента
+	* прочитать все доступные данные от клиента
+	* @param allocate размер ByteBuffer
 	* @return
 	* @throws IOException
 	*/
-	public List<String> read() throws IOException {
-		ArrayList<String> result = new ArrayList<String>();
-		BufferedReader reader = new BufferedReader(new InputStreamReader(IS));
-		while(reader.ready()) result.add(reader.readLine());
-		return result;
+	public byte[] readAll(int allocate) throws IOException {
+		ByteArrayOutputStream bao = new ByteArrayOutputStream();
+		ByteBuffer buf = ByteBuffer.allocate(allocate);
+		while(CHANNEL.read(buf) > 0) {
+			buf.flip();
+			byte[] b = new byte[buf.limit()];
+			buf.get(b);
+			bao.write(b);
+			buf.clear();
+		}
+		return bao.toByteArray();
+	}
+	
+	/**
+	 * прочитать данные
+	 * @param len количество байт (для ByteBuffer)
+	 * @return
+	 * @throws IOException
+	 */
+	public byte[] read(int len) throws IOException {
+		ByteBuffer buf = ByteBuffer.allocate(len);
+		CHANNEL.read(buf);
+		buf.flip();
+		byte[] b = new byte[buf.limit()];
+		buf.get(b);
+		return b;
 	}
 	
 	/**
@@ -150,22 +158,24 @@ public class Processor {
 	* @throws IOException
 	*/
 	public void close() throws IOException {
-		IS.close();
-		OS.close();
-		SOCKET.close();
+		CHANNEL.close();
 	}
 	
 	/**
 	 * прочитать заголовок и заполнить переменные
+	 * @param b полученные данные
+	 * @return true в случае успеха
 	 * @throws IOException
 	 */
-	public void callParseHeader() throws IOException {
-		String request[] = parseHeader();
+	public boolean callParseHeader(byte[] b) throws IOException {
+		String request[] = parseHeader(b);
+		if (request == null) return false;
 		if (request[0].trim().equals("GET")) type = Type.GET;
 		else type = Type.POST;
 		path = request[1].trim();
 		http = request[2].trim();
 		pheader++;
+		return true;
 	}
 	
 	/**
@@ -176,45 +186,118 @@ public class Processor {
 		return pheader;
 	}
 	
-	private int getN(String str) {
-		int result = 0;
-		for (int i = str.length()-1; i >= 0; i--) {
-			if (str.charAt(i) == '\n') result++;
-		}
+	/**
+	 * проверка наличия заголовка
+	 * @param b полученные данные
+	 * @return true если заголовок присутствует
+	 */
+	public boolean isHeaderReady(byte[] b) {
+		if (getBreak(new String(b)) != -1) return true;
+		return false;
+	}
+	
+	/**
+	 * получить размер буфера данных
+	 * @return
+	 */
+	public int getDataSize() {
+		return data.size();
+	}
+	
+	/**
+	 * прочитать данные из буфера, после чего он будет освобождён для записи новых данных
+	 * @return
+	 */
+	public byte[] readData() {
+		byte result[] = data.toByteArray();
+		data.reset();
 		return result;
 	}
 	
 	/**
-	* прочитать только заголовок
-	* @return
-	* @throws IOException
-	*/
-	private List<String> readHeader() throws IOException {
-		ArrayList<String> result = new ArrayList<String>();
-		BufferedReader reader = new BufferedReader(new InputStreamReader(IS));
-		boolean f = false;
-		while(reader.ready()) {
-			String line = reader.readLine();
-			result.add(line);
-			int n = getN(line);
-			if (n >= 2) break;
-			else if (n >= 1 && f) break;
-			else if (n >= 1) f = true;
-		}
-		return result;
+	 * получить данные из буфера без освобождения
+	 * @return
+	 */
+	public byte[] getData() {
+		return data.toByteArray();
 	}
 	
 	/**
-	* прочитать данные от клиента и заполнить HEADER
-	* @return данные для заполнения type, path и http
-	* @throws IOException
-	*/
-	private String[] parseHeader() throws IOException {
+	 * вызывается для чтения данных по событию из Worker или аналогичного обработчика
+	 * @throws IOException
+	 */
+	public void callRead() throws IOException {
+		int len = dataLimit - data.size();
+		if (len > 0) data.write(read(len));
+	}
+	
+	/**
+	 * вызывается для записи данных по событию из Worker или аналогичного обработчика
+	 * @throws IOException
+	 */
+	public void callWrite() throws IOException {
+		if (wpos < wlen) wpos += lfc.transferTo(wpos, wbuf, CHANNEL);
+		if (lfc != null && lfc.isOpen() && wpos >= wlen) {
+			wpos = 0;
+			wlen = 0;
+			wbuf = 0;
+			lfc.close();
+			lfc = null;
+		}
+	}
+	
+	/**
+	 * проверить, ведётся ли отдача файла
+	 * @return true если да
+	 */
+	public boolean isWriting() {
+		if (wpos != 0) return true;
+		return false;
+	}
+	
+	/**
+	 * получить размер буфера данных, наполняющегося при вызовах callRead
+	 * @return
+	 */
+	public int getDataLimit() {
+		return dataLimit;
+	}
+	
+	/**
+	 * установить размер буфера данных
+	 * @param limit
+	 */
+	public void setDataLimit(int limit) {
+		dataLimit = limit;
+	}
+	
+	/**
+	 * получить позицию окончания заголовка (двойной перевод строки)
+	 * @param str
+	 * @return -1 если не найдена
+	 */
+	public int getBreak(String str) {
+		char arr[] = str.toCharArray();
+		int last = -1;
+		for (int i = 0; i < arr.length; i++) {
+			if (arr[i] == '\n') {
+				if (last == i - 1 || last == i - 2) return i;
+				else last = i;
+			}
+		}
+		return -1;
+	}
+	
+	private String[] parseHeader(byte[] b) throws IOException {
+		String str = new String(b);
+		int br = getBreak(str);
+		if (br == -1) return null;
 		boolean first = true;
 		String result[] = null;
 		HEADER.clear();
-		for (String s : readHeader()) {
+		for (String s : str.substring(0, br).trim().split("\n")) {
 			if (s == null || s.isEmpty()) continue;
+			s = s.trim();
 			if (first) {
 				result = s.split(" ");
 				first = false;
@@ -228,19 +311,21 @@ public class Processor {
 		return result;
 	}
 	
-	/**
-	* отправить клиенту заголовок из respheader и respcode
-	* @throws IOException
-	*/
-	private void writeHeader() throws IOException {
-		OS.write((respcode + "\r\n").getBytes());
+	private byte[] getHeader() throws IOException {
+		ByteArrayOutputStream bao = new ByteArrayOutputStream();
+		bao.write((respcode + "\r\n").getBytes());
 		for (Entry<String, String> entry : respheader.entrySet()) {
 			String resp = entry.getKey() + ": " + entry.getValue() + "\r\n";
-			OS.write(resp.getBytes());
+			bao.write(resp.getBytes());
 		}
-		if (mime != null) OS.write(("Content-Type: " + mime + "\r\n").getBytes());
-		OS.write("\r\n".getBytes());
+		if (mime != null) bao.write(("Content-Type: " + mime + "\r\n").getBytes());
+		bao.write("\r\n".getBytes());
+		bao.flush();
+		return bao.toByteArray();
 	}
 	
+	/**
+	 * тип запроса
+	 */
 	public enum Type {GET, POST}
 }
