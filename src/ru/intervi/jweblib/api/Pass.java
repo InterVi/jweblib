@@ -42,7 +42,7 @@ public class Pass implements Listener {
 	}
 	
 	@Override
-	public void onRunException() {
+	public void onRunException(Exception e) {
 		
 	}
 	

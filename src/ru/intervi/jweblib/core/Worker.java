@@ -32,7 +32,7 @@ public class Worker extends Thread {
 					} catch(Exception e) {SERVER.listener.onException(key, e);}
 				}
 				if (s == 0) Thread.sleep(1);
-			} catch(Exception e) {SERVER.listener.onRunException();}
+			} catch(Exception e) {SERVER.listener.onRunException(e);}
 		}
 	}
 }

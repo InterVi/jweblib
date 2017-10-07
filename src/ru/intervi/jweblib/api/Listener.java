@@ -13,6 +13,6 @@ public interface Listener {
 	public void onRead(SelectionKey key);
 	public void onWrite(SelectionKey key);
 	public void onException(SelectionKey key, Exception e);
-	public void onRunException();
+	public void onRunException(Exception e);
 	public void onInvalid(SelectionKey key);
 }

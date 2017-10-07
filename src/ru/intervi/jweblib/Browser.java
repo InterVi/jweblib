@@ -128,7 +128,8 @@ public class Browser extends Pass {
 	}
 	
 	@Override
-	public void onRunException() {
+	public void onRunException(Exception e) {
+		e.printStackTrace();
 		map.clear();
 		map2.clear();
 		stop();
