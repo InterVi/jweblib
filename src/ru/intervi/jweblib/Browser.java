@@ -70,6 +70,7 @@ public class Browser extends Pass {
 			else return;
 			FileBrowser browser = new FileBrowser(proc, PATH);
 			System.out.println("Connect " + channel.getRemoteAddress().toString() + ", " + (browser.PROC.type == Processor.Type.GET ? "GET " : "POST ") + browser.PATH.getAbsolutePath());
+			if (!browser.PATH.exists()) return;
 			FileSender sender = browser.run(true);
 			if (sender != null) {
 				map.put(channel.getRemoteAddress(), sender);
