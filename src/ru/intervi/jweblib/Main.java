@@ -3,7 +3,7 @@ package ru.intervi.jweblib;
 import java.util.Scanner;
 
 public class Main {
-	public static final String VERSION = "0.9";
+	public static final String VERSION = "1.0";
 	
 	/**
 	 * 

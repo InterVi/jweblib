@@ -51,8 +51,7 @@ public class FileSender {
 	 */
 	public boolean sendFile(File file, int buffer, boolean mime, boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		if (file.isFile()) {
-			if (mime) PROC.mime = Files.probeContentType(file.toPath());
-			PROC.writeResponse(file, buffer, longer);
+			PROC.writeResponse(file, buffer, longer, Files.probeContentType(file.toPath()), Processor.getRespheader());
 			return true;
 		} else return false;
 	}

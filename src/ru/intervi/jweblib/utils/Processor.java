@@ -6,6 +6,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.zip.GZIPOutputStream;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -48,30 +49,43 @@ public class Processor {
 	*/
 	public String http;
 	/**
-	* заголовок для ответа клиенту
+	* стандартный код для ответа
 	*/
-	public HashMap<String, String> respheader = new HashMap<String, String>();
+	public static String RESPCODE = "http/1.1 200 OK";
 	/**
-	* код для ответа
-	*/
-	public String respcode = "http/1.1 200 OK";
-	/**
-	* MIME тип
-	*/
-	public String mime = "text/html; charset=\"UTF-8\"";
+	 * стандартный MIME тип для страниц: text/html; charset="UTF-8"
+	 */
+	public static String PLAIN = "text/html; charset=\"UTF-8\"";
 	private int pheader = 0, dataLimit = 1024, wpos = 0, wbuf = 0;
 	private long wlen = 0;
 	private ByteArrayOutputStream data = new ByteArrayOutputStream();
 	private FileChannel lfc;
+	private boolean fwrite = false;
+	
+	/**
+	 * получить respheader
+	 * @param args чётные - ключи, не чётные - значения
+	 * @return
+	 */
+	public static Map<String, String> getRespheader(String ... args) {
+		HashMap<String, String> result = new HashMap<String, String>();
+		for (int i = 0; i < args.length; i += 2) {
+			if (i+1 == args.length) break;
+			result.put(args[i], args[i+1]);
+		}
+		return result;
+	}
 	
 	/**
 	* отправка строки в ответ (автоматическая добавка Content-Length в заголовок)
 	* @param response содержимое страницы
 	* @param gzip true - упаковать содержимое (добавит Content-Encoding: gzip в заголовок)
+	* @param mime MIME тип
+	* @param respheader заголовок ответа
 	* @throws NullPointerException
 	* @throws IOException
 	*/
-	public void writeResponse(String response, boolean gzip) throws NullPointerException, IOException {
+	public void writeResponse(String response, boolean gzip, String mime, Map<String, String> respheader) throws NullPointerException, IOException {
 		if (response == null) throw new NullPointerException("response is null");
 		ByteArrayOutputStream bao = new ByteArrayOutputStream();
 		if (gzip) {
@@ -85,7 +99,7 @@ public class Processor {
 		bao.flush();
 		byte b[] = bao.toByteArray();
 		bao.reset();
-		bao.write(getHeader());
+		bao.write(getHeader(respheader, mime, RESPCODE));
 		bao.write(b);
 		bao.flush();
 		CHANNEL.write(ByteBuffer.wrap(bao.toByteArray()));
@@ -95,15 +109,17 @@ public class Processor {
 	* отправка файла в ответ
 	* @param response файл
 	* @param buffer по скольку байтов читать из файла за 1 итерацию цикла
-	* @longer true - постепенная не блокирующая отправка (по вызовам callWrite), false - целиковая (блокирующая)
+	* @param longer true - постепенная не блокирующая отправка (по вызовам callWrite), false - целиковая (блокирующая)
+	* @param mime MIME тип
+	* @param respheader заголовок ответа
 	* @throws NullPointerException
 	* @throws IOException
 	*/
-	public void writeResponse(File response, int buffer, boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+	public void writeResponse(File response, int buffer, boolean longer, String mime, Map<String, String> respheader) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		if (response == null) throw new NullPointerException("response is null");
 		if (buffer <= 0) throw new IllegalArgumentException("buffer <= 0");
 		respheader.put("Content-Length", String.valueOf(response.length()));
-		CHANNEL.write(ByteBuffer.wrap(getHeader()));
+		CHANNEL.write(ByteBuffer.wrap(getHeader(respheader, mime, RESPCODE)));
 		if (longer) {
 			lfc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
 			wpos = 0;
@@ -244,6 +260,15 @@ public class Processor {
 			lfc.close();
 			lfc = null;
 		}
+		fwrite = true;
+	}
+	
+	/**
+	 * проверить, вызывался ли когда-либо callWrite
+	 * @return true если да
+	 */
+	public boolean isWritten() {
+		return fwrite;
 	}
 	
 	/**
@@ -311,7 +336,7 @@ public class Processor {
 		return result;
 	}
 	
-	private byte[] getHeader() throws IOException {
+	private byte[] getHeader(Map<String, String> respheader, String mime, String respcode) throws IOException {
 		ByteArrayOutputStream bao = new ByteArrayOutputStream();
 		bao.write((respcode + "\r\n").getBytes());
 		for (Entry<String, String> entry : respheader.entrySet()) {

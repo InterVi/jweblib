@@ -105,7 +105,7 @@ public class FileBrowser {
 		}
 		args[3] = dirs;
 		args[4] = files;
-		PROC.writeResponse(String.format(template, (Object[]) args), true);
+		PROC.writeResponse(String.format(template, (Object[]) args), true, Processor.PLAIN, Processor.getRespheader());
 		PROC.close();
 		return null;
 	}
