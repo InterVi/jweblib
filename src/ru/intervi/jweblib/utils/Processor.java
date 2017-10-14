@@ -208,7 +208,7 @@ public class Processor {
 	 * @return true если заголовок присутствует
 	 */
 	public boolean isHeaderReady(byte[] b) {
-		if (getBreak(new String(b)) != -1) return true;
+		if (Parser.getBreak(b) != -1) return true;
 		return false;
 	}
 	
@@ -296,26 +296,9 @@ public class Processor {
 		dataLimit = limit;
 	}
 	
-	/**
-	 * получить позицию окончания заголовка (двойной перевод строки)
-	 * @param str
-	 * @return -1 если не найдена
-	 */
-	public int getBreak(String str) {
-		char arr[] = str.toCharArray();
-		int last = -1;
-		for (int i = 0; i < arr.length; i++) {
-			if (arr[i] == '\n') {
-				if (last == i - 1 || last == i - 2) return i;
-				else last = i;
-			}
-		}
-		return -1;
-	}
-	
 	private String[] parseHeader(byte[] b) throws IOException {
 		String str = new String(b);
-		int br = getBreak(str);
+		int br = Parser.getBreak(str);
 		if (br == -1) return null;
 		boolean first = true;
 		String result[] = null;
