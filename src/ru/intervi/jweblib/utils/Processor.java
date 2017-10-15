@@ -1,8 +1,10 @@
 package ru.intervi.jweblib.utils;
 
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.nio.file.StandardOpenOption;
 import java.util.zip.GZIPOutputStream;
 import java.util.HashMap;
@@ -61,6 +63,7 @@ public class Processor {
 	private ByteArrayOutputStream data = new ByteArrayOutputStream();
 	private FileChannel lfc;
 	private boolean fwrite = false;
+	private String charset = Charset.defaultCharset().name();
 	
 	/**
 	 * получить respheader
@@ -92,10 +95,10 @@ public class Processor {
 			GZIPOutputStream gos = new GZIPOutputStream(bao);
 			gos.write(response.getBytes());
 			gos.close();
-			respheader.put("Content-Encoding", "gzip");
+			respheader.put(Charset.forName(charset).encode("Content-Encoding").toString(), Charset.forName(charset).encode("gzip").toString());
 		}
 		else bao.write(response.getBytes());
-		respheader.put("Content-Length", String.valueOf(bao.size()));
+		respheader.put(Charset.forName(charset).encode("Content-Length").toString(), String.valueOf(bao.size()));
 		bao.flush();
 		byte b[] = bao.toByteArray();
 		bao.reset();
@@ -118,7 +121,7 @@ public class Processor {
 	public void writeResponse(File response, int buffer, boolean longer, String mime, Map<String, String> respheader) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		if (response == null) throw new NullPointerException("response is null");
 		if (buffer <= 0) throw new IllegalArgumentException("buffer <= 0");
-		respheader.put("Content-Length", String.valueOf(response.length()));
+		respheader.put(Charset.forName(charset).encode("Content-Length").toString(), String.valueOf(response.length()));
 		CHANNEL.write(ByteBuffer.wrap(getHeader(respheader, mime, RESPCODE)));
 		if (longer) {
 			lfc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
@@ -186,7 +189,7 @@ public class Processor {
 	public boolean callParseHeader(byte[] b) throws IOException {
 		String request[] = parseHeader(b);
 		if (request == null) return false;
-		if (request[0].trim().equals("GET")) type = Type.GET;
+		if (request[0].trim().equals(Charset.forName(charset).encode("GET").toString())) type = Type.GET;
 		else type = Type.POST;
 		path = request[1].trim();
 		http = request[2].trim();
@@ -208,7 +211,7 @@ public class Processor {
 	 * @return true если заголовок присутствует
 	 */
 	public boolean isHeaderReady(byte[] b) {
-		if (Parser.getBreak(b) != -1) return true;
+		if (Parser.getBreak(b, charset) != -1) return true;
 		return false;
 	}
 	
@@ -296,6 +299,22 @@ public class Processor {
 		dataLimit = limit;
 	}
 	
+	/**
+	 * получить теущую кодировку
+	 * @return
+	 */
+	public String getCharset() {
+		return charset;
+	}
+	
+	/**
+	 * установить кодировку
+	 * @param ch
+	 */
+	public void setCharset(String ch) {
+		charset = ch;
+	}
+	
 	private String[] parseHeader(byte[] b) throws IOException {
 		String str = new String(b);
 		int br = Parser.getBreak(str);
@@ -303,15 +322,16 @@ public class Processor {
 		boolean first = true;
 		String result[] = null;
 		HEADER.clear();
-		for (String s : str.substring(0, br).trim().split("\n")) {
+		String p = Charset.forName(charset).encode(" ").toString();
+		for (String s : str.substring(0, br).trim().split(Charset.forName(charset).encode("\n").toString())) {
 			if (s == null || s.isEmpty()) continue;
 			s = s.trim();
 			if (first) {
-				result = s.split(" ");
+				result = s.split(p);
 				first = false;
 			} else {
 				String value = s.substring(s.indexOf(' ') + 1).trim();
-				String key = s.split(" ")[0].trim();
+				String key = s.split(p)[0].trim();
 				key = key.substring(0, key.length()-1);
 				HEADER.put(key, value);
 			}
@@ -321,13 +341,14 @@ public class Processor {
 	
 	private byte[] getHeader(Map<String, String> respheader, String mime, String respcode) throws IOException {
 		ByteArrayOutputStream bao = new ByteArrayOutputStream();
-		bao.write((respcode + "\r\n").getBytes());
+		byte rn[] = Charset.forName(charset).encode(CharBuffer.wrap(new char[] {'\r', '\n'})).array();
+		bao.write((respcode + rn).getBytes());
 		for (Entry<String, String> entry : respheader.entrySet()) {
-			String resp = entry.getKey() + ": " + entry.getValue() + "\r\n";
+			String resp = entry.getKey() + Charset.forName(charset).encode(": ").toString() + entry.getValue() + rn;
 			bao.write(resp.getBytes());
 		}
-		if (mime != null) bao.write(("Content-Type: " + mime + "\r\n").getBytes());
-		bao.write("\r\n".getBytes());
+		if (mime != null) bao.write((Charset.forName(charset).encode("Content-Type: ").toString() + mime + rn).getBytes());
+		bao.write(rn);
 		bao.flush();
 		return bao.toByteArray();
 	}

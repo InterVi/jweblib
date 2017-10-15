@@ -2,6 +2,8 @@ package ru.intervi.jweblib.utils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.CharBuffer;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -70,15 +72,19 @@ public class Parser {
 	/**
 	 * получить позицию окончания заголовка (двойной перевод строки)
 	 * @param b
+	 * @param charsetName кодировка
 	 * @return -1 если не найдена
 	 */
-	public static int getBreak(byte b[]) {
+	public static int getBreak(byte b[], String charsetName) {
+		byte s[] = Charset.forName(charsetName).encode(CharBuffer.wrap(new char[] {'\n'})).array();
 		int last = -1;
-		for (int i = 0; i < b.length; i++) {
-			if (b[i] == 10) {
-				if (last == i - 1 || last == i - 2) return i;
-				else last = i;
+		for (int i = 0; i < b.length; i += s.length) {
+			if (i+s.length >= b.length) break;
+			for (int n = i, a = 0; a < s.length; n++, a++) {
+				if (b[n] != s[a]) continue;
 			}
+			if (last == i - 1 || last == i - 2) return i;
+			else last = i;
 		}
 		return -1;
 	}
@@ -86,12 +92,13 @@ public class Parser {
 	/**
 	 * отделить переданые данные от заголовка
 	 * @param b
+	 * @param charsetName кодировка
 	 * @return отделённые данные или null
 	 * @throws IOException
 	 */
-	public static byte[] separateData(byte b[]) throws IOException {
+	public static byte[] separateData(byte b[], String charsetName) throws IOException {
 		ByteArrayOutputStream bao = new ByteArrayOutputStream();
-		int pos = getBreak(b);
+		int pos = getBreak(b, charsetName);
 		if (pos == -1) return null;
 		for (int n = pos+1; n < b.length; n++) bao.write(b[n]);
 		bao.flush();
