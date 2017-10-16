@@ -1,7 +1,6 @@
 package ru.intervi.jweblib.utils;
 
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
@@ -93,12 +92,12 @@ public class Processor {
 		ByteArrayOutputStream bao = new ByteArrayOutputStream();
 		if (gzip) {
 			GZIPOutputStream gos = new GZIPOutputStream(bao);
-			gos.write(response.getBytes());
+			gos.write(response.getBytes(charset));
 			gos.close();
-			respheader.put(Charset.forName(charset).encode("Content-Encoding").toString(), Charset.forName(charset).encode("gzip").toString());
+			respheader.put("Content-Encoding", "gzip");
 		}
-		else bao.write(response.getBytes());
-		respheader.put(Charset.forName(charset).encode("Content-Length").toString(), String.valueOf(bao.size()));
+		else bao.write(response.getBytes(charset));
+		respheader.put("Content-Length", String.valueOf(bao.size()));
 		bao.flush();
 		byte b[] = bao.toByteArray();
 		bao.reset();
@@ -121,7 +120,7 @@ public class Processor {
 	public void writeResponse(File response, int buffer, boolean longer, String mime, Map<String, String> respheader) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		if (response == null) throw new NullPointerException("response is null");
 		if (buffer <= 0) throw new IllegalArgumentException("buffer <= 0");
-		respheader.put(Charset.forName(charset).encode("Content-Length").toString(), String.valueOf(response.length()));
+		respheader.put("Content-Length", String.valueOf(response.length()));
 		CHANNEL.write(ByteBuffer.wrap(getHeader(respheader, mime, RESPCODE)));
 		if (longer) {
 			lfc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
@@ -189,7 +188,7 @@ public class Processor {
 	public boolean callParseHeader(byte[] b) throws IOException {
 		String request[] = parseHeader(b);
 		if (request == null) return false;
-		if (request[0].trim().equals(Charset.forName(charset).encode("GET").toString())) type = Type.GET;
+		if (request[0].trim().equals("GET")) type = Type.GET;
 		else type = Type.POST;
 		path = request[1].trim();
 		http = request[2].trim();
@@ -322,16 +321,15 @@ public class Processor {
 		boolean first = true;
 		String result[] = null;
 		HEADER.clear();
-		String p = Charset.forName(charset).encode(" ").toString();
-		for (String s : str.substring(0, br).trim().split(Charset.forName(charset).encode("\n").toString())) {
+		for (String s : str.substring(0, br).trim().split("\n")) {
 			if (s == null || s.isEmpty()) continue;
 			s = s.trim();
 			if (first) {
-				result = s.split(p);
+				result = s.split(" ");
 				first = false;
 			} else {
 				String value = s.substring(s.indexOf(' ') + 1).trim();
-				String key = s.split(p)[0].trim();
+				String key = s.split(" ")[0].trim();
 				key = key.substring(0, key.length()-1);
 				HEADER.put(key, value);
 			}
@@ -341,14 +339,13 @@ public class Processor {
 	
 	private byte[] getHeader(Map<String, String> respheader, String mime, String respcode) throws IOException {
 		ByteArrayOutputStream bao = new ByteArrayOutputStream();
-		byte rn[] = Charset.forName(charset).encode(CharBuffer.wrap(new char[] {'\r', '\n'})).array();
-		bao.write((respcode + rn).getBytes());
+		bao.write((respcode + "\r\n").getBytes(charset));
 		for (Entry<String, String> entry : respheader.entrySet()) {
-			String resp = entry.getKey() + Charset.forName(charset).encode(": ").toString() + entry.getValue() + rn;
-			bao.write(resp.getBytes());
+			String resp = entry.getKey() + ": " + entry.getValue() + "\r\n";
+			bao.write(resp.getBytes(charset));
 		}
-		if (mime != null) bao.write((Charset.forName(charset).encode("Content-Type: ").toString() + mime + rn).getBytes());
-		bao.write(rn);
+		if (mime != null) bao.write(("Content-Type: " + mime + "\r\n").getBytes(charset));
+		bao.write("\r\n".getBytes(charset));
 		bao.flush();
 		return bao.toByteArray();
 	}
