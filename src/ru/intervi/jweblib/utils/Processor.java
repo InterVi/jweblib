@@ -12,7 +12,9 @@ import java.util.Map.Entry;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 
 /**
  * Класс для работы с клиентским сокетом.
@@ -61,7 +63,7 @@ public class Processor {
 	private long wlen = 0;
 	private ByteArrayOutputStream data = new ByteArrayOutputStream();
 	private FileChannel lfc;
-	private boolean fwrite = false;
+	private boolean fwrite = false, fread = false, reading = false;
 	private String charset = Charset.defaultCharset().name();
 	
 	/**
@@ -128,11 +130,45 @@ public class Processor {
 			wbuf = buffer;
 			wlen = response.length();
 			wpos += lfc.transferTo(wpos, wbuf, CHANNEL);
+			reading = false;
 		} else {
 			FileChannel fc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
 			long pos = 0;
 			while(pos < response.length())
 				pos += fc.transferTo(pos, buffer, CHANNEL);
+			fc.close();
+		}
+	}
+	
+	/**
+	 * прочитать ответ в файл
+	 * @param save файл для сохранения
+	 * @param buffer по скольку байтов читать из канала за 1 итерацию цикла
+	 * @param longer true - постепенное не блокирующее чтение (по вызовам callRead), false - целиковое (блокирующее)
+	 * @param start начальные данные с HTTP заголовком
+	 * @param length размер файла в байтах
+	 * @throws IOException
+	 */
+	public void readResponse(File save, int buffer, boolean longer, byte[] start, long length) throws IOException {
+		save.getParentFile().mkdirs();
+		if (!save.isFile()) save.createNewFile();
+		FileOutputStream fos = new FileOutputStream(save);
+		byte d[] = Parser.separateData(start);
+		fos.write(d);
+		fos.close();
+		if (longer) {
+			lfc = FileChannel.open(save.toPath(), StandardOpenOption.APPEND);
+			wpos = d.length;
+			wbuf = buffer;
+			wlen = length;
+			lfc.position(wpos);
+			reading = true;
+		} else {
+			FileChannel fc = FileChannel.open(save.toPath(), StandardOpenOption.APPEND);
+			long pos = d.length;
+			fc.position(pos);
+			while(pos < length)
+				pos += fc.transferFrom(CHANNEL, wpos, buffer);
 			fc.close();
 		}
 	}
@@ -187,7 +223,7 @@ public class Processor {
 	 */
 	public boolean callParseHeader(byte[] b) throws IOException {
 		String request[] = parseHeader(b);
-		if (request == null) return false;
+		if (request == null || request.length < 3) return false;
 		if (request[0].trim().equals("GET")) type = Type.GET;
 		else type = Type.POST;
 		path = request[1].trim();
@@ -208,9 +244,10 @@ public class Processor {
 	 * проверка наличия заголовка
 	 * @param b полученные данные
 	 * @return true если заголовок присутствует
+	 * @throws UnsupportedEncodingException 
 	 */
-	public boolean isHeaderReady(byte[] b) {
-		if (Parser.getBreak(b, charset) != -1) return true;
+	public boolean isHeaderReady(byte[] b) throws UnsupportedEncodingException {
+		if (Parser.getBreak(new String(b)) != -1) return true;
 		return false;
 	}
 	
@@ -245,6 +282,22 @@ public class Processor {
 	 * @throws IOException
 	 */
 	public void callRead() throws IOException {
+		if (reading) {
+			if (wpos < wlen) {
+				wpos += lfc.transferFrom(CHANNEL, wpos, wbuf);
+				return;
+			}
+			if (lfc != null && lfc.isOpen() && wpos >= wlen) {
+				wpos = 0;
+				wlen = 0;
+				wbuf = 0;
+				lfc.close();
+				lfc = null;
+				reading = false;
+			}
+			fread = true;
+			return;
+		}
 		int len = dataLimit - data.size();
 		if (len > 0) data.write(read(len));
 	}
@@ -274,11 +327,28 @@ public class Processor {
 	}
 	
 	/**
+	 * проверить, вызывался ли когда-либо callRead для записи в файл
+	 * @return true если да
+	 */
+	public boolean isReaded() {
+		return fread;
+	}
+	
+	/**
 	 * проверить, ведётся ли отдача файла
 	 * @return true если да
 	 */
 	public boolean isWriting() {
-		if (wpos != 0) return true;
+		if (wpos != 0 && !reading) return true;
+		return false;
+	}
+	
+	/**
+	 * проверить, ведётся ли запись файла
+	 * @return true если да
+	 */
+	public boolean isReading() {
+		if (wpos != 0 && reading) return true;
 		return false;
 	}
 	
@@ -315,14 +385,16 @@ public class Processor {
 	}
 	
 	private String[] parseHeader(byte[] b) throws IOException {
-		String str = new String(b);
-		int br = Parser.getBreak(str);
+		int br = Parser.getBreak(new String(b));
 		if (br == -1) return null;
+		byte sh[] = Parser.separateHeader(b);
+		if (sh == null) return null;
+		String str = new String(sh).trim();
 		boolean first = true;
 		String result[] = null;
 		HEADER.clear();
-		for (String s : str.substring(0, br).trim().split("\n")) {
-			if (s == null || s.isEmpty()) continue;
+		for (String s : str.split("\n")) {
+			if (s == null || s.isEmpty() || s.indexOf(' ') == -1) continue;
 			s = s.trim();
 			if (first) {
 				result = s.split(" ");
@@ -330,6 +402,7 @@ public class Processor {
 			} else {
 				String value = s.substring(s.indexOf(' ') + 1).trim();
 				String key = s.split(" ")[0].trim();
+				if (key.isEmpty() || value.isEmpty()) continue;
 				key = key.substring(0, key.length()-1);
 				HEADER.put(key, value);
 			}
