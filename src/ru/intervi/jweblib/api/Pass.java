@@ -50,4 +50,9 @@ public class Pass implements Listener {
 	public void onInvalid(SelectionKey key) {
 		
 	}
+	
+	@Override
+	public void onClose(SelectionKey key) {
+		
+	}
 }

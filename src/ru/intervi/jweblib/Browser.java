@@ -20,8 +20,9 @@ import ru.intervi.jweblib.utils.Processor;
  * запускает простейший файловый менеджер
  */
 public class Browser extends Pass {
-	public Browser(String host, String path, int port) {
+	public Browser(String host, String path, int port, String index) {
 		PATH = new File(path);
+		INDEX = index;
 		SERVER = new HTTPServer(host, port, this);
 		try {SERVER.start(); SERVER.startWorker();}
 		catch(IOException e) {e.printStackTrace();}
@@ -34,6 +35,7 @@ public class Browser extends Pass {
 	}
 	
 	private final File PATH;
+	private final String INDEX;
 	private final HTTPServer SERVER;
 	private volatile HashMap<SocketAddress, FileSender> map = new HashMap<SocketAddress, FileSender>();
 	private volatile HashMap<SocketAddress, Processor> map2 = new HashMap<SocketAddress, Processor>();
@@ -64,15 +66,27 @@ public class Browser extends Pass {
 	public void onRead(SelectionKey key) {
 		try {
 			SocketChannel channel = (SocketChannel) key.channel();
-			if (!map2.containsKey(channel.getRemoteAddress())) return;
+			if (!map2.containsKey(channel.getRemoteAddress())) {
+				channel.close();
+				return;
+			}
 			Processor proc = map2.get(channel.getRemoteAddress());
 			proc.callRead();
 			if (proc.isHeaderReady(proc.getData())) proc.callParseHeader(proc.readData());
 			else return;
-			FileBrowser browser = new FileBrowser(proc, PATH);
+			String url = proc.path;
+			File path = null;
+			if (INDEX != null) {
+				path = FileBrowser.getPath(PATH, url);
+				if (path.isDirectory()) {
+					File file = new File(path, INDEX);
+					if (file.isFile()) path = file;
+				}
+			}
+			FileBrowser browser = new FileBrowser(proc, Processor.getRespheader(), PATH, url, path);
 			System.out.println("Connect " + channel.getRemoteAddress().toString() + ", " + (browser.PROC.type == Processor.Type.GET ? "GET " : "POST ") + browser.PATH.getAbsolutePath());
 			if (!browser.PATH.exists()) return;
-			FileSender sender = browser.run(true);
+			FileSender sender = browser.run(true, true, 1024);
 			if (sender != null) {
 				map.put(channel.getRemoteAddress(), sender);
 				channel.register(SERVER.selector, SelectionKey.OP_WRITE);
@@ -144,6 +158,11 @@ public class Browser extends Pass {
 		map.clear();
 		map2.clear();
 		stop();
+	}
+	
+	@Override
+	public void onClose(SelectionKey key) {
+		clear();
 	}
 	
 	public synchronized void stop() {

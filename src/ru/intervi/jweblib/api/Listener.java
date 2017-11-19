@@ -15,4 +15,5 @@ public interface Listener {
 	public void onException(SelectionKey key, Exception e);
 	public void onRunException(Exception e);
 	public void onInvalid(SelectionKey key);
+	public void onClose(SelectionKey key);
 }

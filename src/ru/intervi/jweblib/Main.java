@@ -3,7 +3,7 @@ package ru.intervi.jweblib;
 import java.util.Scanner;
 
 public class Main {
-	public static final String VERSION = "1.3";
+	public static final String VERSION = "1.4";
 	
 	/**
 	 * 
@@ -12,8 +12,9 @@ public class Main {
 	public static void main(String[] args) {
 		String host = "127.0.0.1";
 		int port = 8080;
-		String path = null;
-		boolean browser = false;
+		String path = null; //директория для файл менеджера
+		boolean browser = false; //запуск файл менеджера
+		String index = null; //индексный файл (откроется вместо директории)
 		if (args != null) {
 			if (args.length >= 1) {
 				if (args[0].equals("--version") || args[0].equals("-v")) {
@@ -23,7 +24,10 @@ public class Main {
 				else if (args[0].equals("--help") || args[0].equals("-h")) {
 					System.out.println("Using: java -jar jweblib.jar [host] [port] [path] options");
 					System.out.println("Using: java -jar jweblib.jar --version or --help");
-					System.out.println("Options: [-b] - start file browser");
+					System.out.println("Example: java -jar jweblib.jar 0.0.0.0 8080 ./ -b");
+					System.out.println("Options:");
+					System.out.println("[-b] - start file browser");
+					System.out.println("[-i] file - index file");
 					return;
 				}
 				else host = args[0];
@@ -33,10 +37,25 @@ public class Main {
 			}
 			if (args.length >= 3) path = args[2];
 			if (args.length >= 4 && args[3].equals("-b")) browser = true;
+			for (int i = 3; i < args.length; i++) {
+				switch(args[i]) {
+				case "-b":
+					browser = true;
+					break;
+				case "-i":
+					if (args.length > i + 1) {
+						index = args[i+1];
+						i++;
+					} else {
+						System.out.println("no argument for [-i]");
+						return;
+					}
+				}
+			}
 		}
 		Browser bro = null;
 		HelloWorld hw = null;
-		if (browser) bro = new Browser(host, path, port);
+		if (browser) bro = new Browser(host, path, port, index);
 		else hw = new HelloWorld(host, path, port);
 		Scanner in = new Scanner(System.in);
 		while (true) {

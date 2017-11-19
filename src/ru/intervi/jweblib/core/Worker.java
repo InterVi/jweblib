@@ -17,7 +17,7 @@ public class Worker extends Thread {
 	public void run() {
 		while(SERVER.server.isOpen()) {
 			try {
-				int s = SERVER.selector.select();
+				SERVER.selector.select();
 				for (SelectionKey key : SERVER.selector.selectedKeys()) {
 					try {
 						if (!key.isValid()) {
@@ -25,13 +25,13 @@ public class Worker extends Thread {
 							key.channel().close();
 							continue;
 						}
+						if (!key.channel().isOpen()) SERVER.listener.onClose(key);
 						if (key.isConnectable()) SERVER.listener.onConnect(key);
 						if (key.isAcceptable()) SERVER.listener.onAccept(key);
 						if (key.isReadable()) SERVER.listener.onRead(key);
 						if (key.isWritable()) SERVER.listener.onWrite(key);
 					} catch(Exception e) {SERVER.listener.onException(key, e);}
 				}
-				if (s == 0) Thread.sleep(1);
 			} catch(Exception e) {SERVER.listener.onRunException(e);}
 		}
 	}

@@ -86,7 +86,8 @@ public class HelloWorld extends Pass {
 			for (Entry<String, String> entry : proc.HEADER.entrySet())
 				System.out.println(entry.getKey() + ": " + entry.getValue());
 			proc.writeResponse(content, false, Processor.PLAIN, 
-					Processor.getRespheader("SERVER", "jweblib " + String.valueOf(Main.VERSION), "Connection", "close"));
+					Processor.getRespheader("SERVER", "jweblib " + String.valueOf(Main.VERSION), "Connection", "close"),
+					Processor.RESPCODE);
 			proc.close();
 		} catch(Exception e) {
 			e.printStackTrace();

@@ -3,17 +3,31 @@ package ru.intervi.jweblib.utils;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Map;
 
 /**
  * Простейший файловый менеджер, позволяющий просматривать директории и скачивать файлы.
  */
 public class FileBrowser {
-	public FileBrowser(Processor proc, File path) throws NullPointerException, IOException {
+	/**
+	 * 
+	 * @param proc
+	 * @param respheader
+	 * @param path корневая директория
+	 * @param url запрашиваемый адрес, может быть null (возьмётся из Processor.path)
+	 * @param send отправляемый файл, может быть null (возьмётся из FileBrowser.getPath)
+	 * @throws NullPointerException
+	 * @throws IOException
+	 */
+	public FileBrowser(Processor proc, Map<String, String> respheader, File path, String url, File send) throws NullPointerException, IOException {
 		PROC = proc;
-		URL = PROC.path;
-		PATH = getPath(path, URL);
+		RESP = respheader;
+		URL = url != null ? url : PROC.path;
+		PATH = send != null ? send : getPath(path, URL);
 	}
 	
+	private final Map<String, String> RESP;
 	public final Processor PROC;
 	/**
 	 * запрашиваемый файл или директория
@@ -62,19 +76,21 @@ public class FileBrowser {
 	/**
 	 * отдача содержимого
 	 * @param longer true - постепенная, не блокирующая отдача файлов
+	 * @param gzip true - сжимать содержимое
+	 * @param buffer размер буфера для различных операций
 	 * @return
 	 * @throws NullPointerException
 	 * @throws FileNotFoundException
 	 * @throws IllegalArgumentException
 	 * @throws IOException
 	 */
-	public FileSender run(boolean longer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
-		if (PROC.type == Processor.Type.POST) {
+	public FileSender run(boolean longer, boolean gzip, int buffer) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+		if (PROC.type == Processor.Type.POST || !PATH.exists()) {
 			PROC.close();
 			return null;
 		}
 		if (PATH.isFile()) {
-			FileSender fs = new FileSender(PROC, PATH, longer);
+			FileSender fs = new FileSender(PROC, PATH, RESP, buffer, Files.probeContentType(PATH.toPath()), longer, gzip);
 			return fs;
 		}
 		FileObject dir = new FileObject(PATH);
@@ -105,7 +121,7 @@ public class FileBrowser {
 		}
 		args[3] = dirs;
 		args[4] = files;
-		PROC.writeResponse(String.format(template, (Object[]) args), true, Processor.PLAIN, Processor.getRespheader());
+		PROC.writeResponse(String.format(template, (Object[]) args), true, Processor.PLAIN, RESP, Processor.RESPCODE);
 		PROC.close();
 		return null;
 	}

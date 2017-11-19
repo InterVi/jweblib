@@ -5,7 +5,9 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.file.StandardOpenOption;
+import java.util.zip.Deflater;
 import java.util.zip.GZIPOutputStream;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -13,6 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 
 /**
  * Класс для работы с клиентским сокетом.
@@ -57,11 +60,14 @@ public class Processor {
 	 * стандартный MIME тип для страниц: text/html; charset="UTF-8"
 	 */
 	public static String PLAIN = "text/html; charset=\"UTF-8\"";
-	private int pheader = 0, dataLimit = 1024, wpos = 0, wbuf = 0;
+	//внутренняя магия
+	private int pheader = 0, dataLimit = 1024, wpos = 0, wbuf = 0, wlevel = Deflater.BEST_COMPRESSION;
 	private long wlen = 0;
 	private ByteArrayOutputStream data = new ByteArrayOutputStream();
 	private FileChannel lfc;
-	private boolean fwrite = false;
+	private GZIPOutputStream wgos;
+	private ByteArrayOutputStream wbao;
+	private boolean fwrite = false, wlonger = false;
 	private String charset = Charset.defaultCharset().name();
 	
 	/**
@@ -80,29 +86,30 @@ public class Processor {
 	
 	/**
 	* отправка строки в ответ (автоматическая добавка Content-Length в заголовок)
-	* @param response содержимое страницы
+	* @param response содержимое страницы (может быть null)
 	* @param gzip true - упаковать содержимое (добавит Content-Encoding: gzip в заголовок)
-	* @param mime MIME тип
+	* @param mime MIME тип (может быть null)
 	* @param respheader заголовок ответа
+	* @param code код ответа
 	* @throws NullPointerException
 	* @throws IOException
 	*/
-	public void writeResponse(String response, boolean gzip, String mime, Map<String, String> respheader) throws NullPointerException, IOException {
+	public void writeResponse(String response, boolean gzip, String mime, Map<String, String> respheader, String code) throws NullPointerException, IOException {
 		if (response == null) throw new NullPointerException("response is null");
 		ByteArrayOutputStream bao = new ByteArrayOutputStream();
-		if (gzip) {
+		if (gzip && response != null) {
 			GZIPOutputStream gos = new GZIPOutputStream(bao);
 			gos.write(response.getBytes(charset));
 			gos.close();
 			respheader.put("Content-Encoding", "gzip");
 		}
-		else bao.write(response.getBytes(charset));
-		respheader.put("Content-Length", String.valueOf(bao.size()));
+		else if (response != null) bao.write(response.getBytes(charset));
+		if (response != null) respheader.put("Content-Length", String.valueOf(bao.size()));
 		bao.flush();
 		byte b[] = bao.toByteArray();
 		bao.reset();
-		bao.write(getHeader(respheader, mime, RESPCODE));
-		bao.write(b);
+		bao.write(getHeader(respheader, mime, code));
+		if (response != null) bao.write(b);
 		bao.flush();
 		CHANNEL.write(ByteBuffer.wrap(bao.toByteArray()));
 	}
@@ -110,31 +117,42 @@ public class Processor {
 	/**
 	* отправка файла в ответ
 	* @param response файл
-	* @param buffer по скольку байтов читать из файла за 1 итерацию цикла
+	* @param gzip true - сжимать содержимое
+	* @param buffer размер буфера для различных операций
 	* @param longer true - постепенная не блокирующая отправка (по вызовам callWrite), false - целиковая (блокирующая)
-	* @param mime MIME тип
+	* @param mime MIME тип (может быть null)
 	* @param respheader заголовок ответа
+	* @param code код ответа
 	* @throws NullPointerException
 	* @throws IOException
 	*/
-	public void writeResponse(File response, int buffer, boolean longer, String mime, Map<String, String> respheader) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
+	public void writeResponse(File response, boolean gzip, int buffer, boolean longer, String mime, Map<String, String> respheader, String code) throws NullPointerException, FileNotFoundException, IllegalArgumentException, IOException {
 		if (response == null) throw new NullPointerException("response is null");
 		if (buffer <= 0) throw new IllegalArgumentException("buffer <= 0");
-		respheader.put("Content-Length", String.valueOf(response.length()));
-		CHANNEL.write(ByteBuffer.wrap(getHeader(respheader, mime, RESPCODE)));
-		if (longer) {
-			lfc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
-			wpos = 0;
-			wbuf = buffer;
-			wlen = response.length();
-			wpos += lfc.transferTo(wpos, wbuf, CHANNEL);
-		} else {
-			FileChannel fc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
-			long pos = 0;
-			while(pos < response.length())
-				pos += fc.transferTo(pos, buffer, CHANNEL);
-			fc.close();
+		if (gzip) {
+			respheader.put("Content-Encoding", "gzip");
+			respheader.put("Transfer-Encoding", "chunked");
+			wbao = new ByteArrayOutputStream();
+			wgos = new GZIPOutputStream(wbao, buffer, true) {
+				public GZIPOutputStream setLevel(int level) {
+					this.def.setLevel(level);
+					return this;
+				}
+			}.setLevel(wlevel);
 		}
+		else respheader.put("Content-Length", String.valueOf(response.length()));
+		respheader.put("Last-Modified", new Date(response.lastModified()).toString());
+		CHANNEL.write(ByteBuffer.wrap(getHeader(respheader, mime, code)));
+		wlonger = longer;
+		wpos = 0;
+		wbuf = buffer;
+		wlen = response.length();
+		lfc = FileChannel.open(response.toPath(), StandardOpenOption.READ);
+		while(wpos < wlen) {
+			transFile();
+			if (longer) return;
+		}
+		endTransFile();
 	}
 	
 	/**
@@ -254,14 +272,9 @@ public class Processor {
 	 * @throws IOException
 	 */
 	public void callWrite() throws IOException {
-		if (wpos < wlen) wpos += lfc.transferTo(wpos, wbuf, CHANNEL);
-		if (lfc != null && lfc.isOpen() && wpos >= wlen) {
-			wpos = 0;
-			wlen = 0;
-			wbuf = 0;
-			lfc.close();
-			lfc = null;
-		}
+		if (!wlonger) return;
+		if (wpos < wlen) transFile();
+		if (lfc != null && lfc.isOpen() && wpos >= wlen) endTransFile();
 		fwrite = true;
 	}
 	
@@ -312,6 +325,54 @@ public class Processor {
 	 */
 	public void setCharset(String ch) {
 		charset = ch;
+	}
+	
+	/**
+	 * получить уровень компрессии
+	 * @return
+	 */
+	public int getGZIPLevel() {
+		return wlevel;
+	}
+	
+	/**
+	 * установить уровень компрессии
+	 * @param level
+	 */
+	public void setGZIPLevel(int level) {
+		wlevel = level;
+	}
+	
+	private void transFile() throws IOException {
+		if (wgos != null) {
+			ByteBuffer bb = ByteBuffer.allocate((int) (wlen - wpos > wbuf ? wbuf : wlen - wpos));
+			wpos += lfc.read(bb);
+			wgos.write(bb.array());
+			wgos.flush();
+			byte[] b = wbao.toByteArray();
+			wbao.reset();
+			wbao.write((Integer.toHexString(b.length) + "\r\n").getBytes(charset));
+			wbao.write(b);
+			wbao.write("\r\n".getBytes(charset));
+			wbao.flush();
+			CHANNEL.write(ByteBuffer.wrap(wbao.toByteArray()));
+			wbao.reset();
+		} else if (lfc != null) wpos += lfc.transferTo(wpos, wbuf, CHANNEL);
+	}
+	
+	private void endTransFile() throws UnsupportedEncodingException, IOException {
+		if (wgos != null) {
+			CHANNEL.write(ByteBuffer.wrap("0\r\n\r\n".getBytes(charset)));
+			wgos.close();
+		}
+		wlonger = false;
+		wpos = 0;
+		wlen = 0;
+		wbuf = 0;
+		lfc.close();
+		lfc = null;
+		wgos = null;
+		wbao = null;
 	}
 	
 	private String[] parseHeader(byte[] b) throws IOException {
