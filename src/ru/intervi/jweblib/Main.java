@@ -15,6 +15,8 @@ public class Main {
 		String path = null; //директория для файл менеджера
 		boolean browser = false; //запуск файл менеджера
 		String index = null; //индексный файл (откроется вместо директории)
+		boolean gzip = false;
+		int buffer = 1024;
 		if (args != null) {
 			if (args.length >= 1) {
 				if (args[0].equals("--version") || args[0].equals("-v")) {
@@ -28,6 +30,8 @@ public class Main {
 					System.out.println("Options:");
 					System.out.println("[-b] - start file browser");
 					System.out.println("[-i] file - index file");
+					System.out.println("[-g] - enable gzip compression");
+					System.out.println("[-B] buffer - set specific buffer size for Pricessor");
 					return;
 				}
 				else host = args[0];
@@ -50,12 +54,24 @@ public class Main {
 						System.out.println("no argument for [-i]");
 						return;
 					}
+					break;
+				case "-g":
+					gzip = true;
+					break;
+				case "-B":
+					if (args.length > i + 1) {
+						buffer = Integer.parseInt(args[i+1]);
+						i++;
+					} else {
+						System.out.println("no argument for [-B]");
+						return;
+					}
 				}
 			}
 		}
 		Browser bro = null;
 		HelloWorld hw = null;
-		if (browser) bro = new Browser(host, path, port, index);
+		if (browser) bro = new Browser(host, path, port, index, gzip, buffer);
 		else hw = new HelloWorld(host, path, port);
 		Scanner in = new Scanner(System.in);
 		while (true) {

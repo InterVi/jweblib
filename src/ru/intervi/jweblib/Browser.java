@@ -20,9 +20,11 @@ import ru.intervi.jweblib.utils.Processor;
  * запускает простейший файловый менеджер
  */
 public class Browser extends Pass {
-	public Browser(String host, String path, int port, String index) {
+	public Browser(String host, String path, int port, String index, boolean gzip, int buffer) {
 		PATH = new File(path);
 		INDEX = index;
+		GZIP = gzip;
+		BUFFER = buffer;
 		SERVER = new HTTPServer(host, port, this);
 		try {SERVER.start(); SERVER.startWorker();}
 		catch(IOException e) {e.printStackTrace();}
@@ -36,6 +38,8 @@ public class Browser extends Pass {
 	
 	private final File PATH;
 	private final String INDEX;
+	private final boolean GZIP;
+	private final int BUFFER;
 	private final HTTPServer SERVER;
 	private volatile HashMap<SocketAddress, FileSender> map = new HashMap<SocketAddress, FileSender>();
 	private volatile HashMap<SocketAddress, Processor> map2 = new HashMap<SocketAddress, Processor>();
@@ -86,7 +90,7 @@ public class Browser extends Pass {
 			FileBrowser browser = new FileBrowser(proc, Processor.getRespheader(), PATH, url, path);
 			System.out.println("Connect " + channel.getRemoteAddress().toString() + ", " + (browser.PROC.type == Processor.Type.GET ? "GET " : "POST ") + browser.PATH.getAbsolutePath());
 			if (!browser.PATH.exists()) return;
-			FileSender sender = browser.run(true, true, 1024);
+			FileSender sender = browser.run(true, GZIP, BUFFER);
 			if (sender != null) {
 				map.put(channel.getRemoteAddress(), sender);
 				channel.register(SERVER.selector, SelectionKey.OP_WRITE);
